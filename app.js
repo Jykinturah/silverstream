@@ -14,6 +14,7 @@ var Silverstream = new function() {
 	this.replies = require("./replies.json");
 	this.botUrl = null;
 	this.db = null;
+	this.enable = false;
 	
 	this.run = function(){
 		var bot = this; // point bot just for ease
@@ -42,16 +43,18 @@ var Silverstream = new function() {
 			const args = message.content.slice(bot.config.prefix.length).trim().split(/ +/g);
   			const command = args.shift().toLowerCase();
 
-  			if(command === 'wordcount'){
-  				return this.wordcount(args,message);
-  			}
-  			if(command === 'register'){
-  				return this.register(args,message);
-    		}
-  			if(command === 'botlink'){
-  				console.log(`botlink: ${message.author.username} (${message.author.id}) ${message.channel.type}`);
-  				return message.channel.send(`Please ask Jykinturah before you add me to your server!\n<${this.botUrl}>`).catch(err => {console.log(err)});
-  			}
+  			if(this.chkAdmin(message.author) || this.enable){
+	  			if(command === 'wordcount'){
+	  				return this.wordcount(args,message);
+	  			}
+	  			if(command === 'register'){
+	  				return this.register(args,message);
+	    		}
+	  			if(command === 'botlink'){
+	  				console.log(`botlink: ${message.author.username} (${message.author.id}) ${message.channel.type}`);
+	  				return message.channel.send(`Please ask Jykinturah before you add me to your server!\n<${this.botUrl}>`).catch(err => {console.log(err)});
+	  			}
+	  		}
 
   			if(this.chkAdmin(message.author)){
   				if(command === 'ping'){
@@ -59,6 +62,15 @@ var Silverstream = new function() {
   					m.edit(`Chirrup~! My response time is ${m.createdTimestamp - message.createdTimestamp}ms!  \`API: ${Math.round(bot.client.ping)}ms\``).catch(err => {console.log(err)});
   					return;
   				}
+
+  				if(command === 'enstatus'){
+  					if(this.enable) message.channel.send(`I'm allowing inputs from users! Enable: ${this.enable}`);
+  					else message.channel.send(`I'm not allowing inputs from users! Enable: ${this.enable}`);
+  				}
+  				
+  				if(command === 'enable') this.enable = true;
+  				if(command === 'disable') this.enable = false;
+
   				if(command === 'serverlist' || command === 'guildlist'){
   					// TODO List servers + ids
   				}
