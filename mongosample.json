@@ -1,0 +1,15 @@
+// users TABLE
+{
+	"_id": 1,
+	"userid": "SNOWFLAKE",
+	"schedules": [
+		{ "month": 0, "day": 0, "hour": 23, "minute": 30, "second": 0 }
+	]
+}
+// counts TABLE
+{
+	"_id": 1,
+	"users_id": 1,
+	"subdate": "DATEOBJ",
+	"count": 200
+}

@@ -1,0 +1,24 @@
+{
+  "name": "silverstream",
+  "version": "0.0.1",
+  "description": "A NodeJS Bot for wordcount storage",
+  "main": "app.js",
+  "engines": {
+    "node": "8.0.0"
+  },
+  "dependencies": {
+    "bluebird": "^3.5.1",
+    "discord.js": "^11.3.2",
+    "moment-timezone": "^0.5.14",
+    "mongodb": "^3.0.5"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "start": "pm2 start app.js --name \"silverstream\"",
+    "stop": "pm2 stop silverstream",
+    "restart": "pm2 restart silverstream",
+    "beautify": "node ./beautify.js"
+  },
+  "author": "Jykinturah",
+  "license": "MIT"
+}
