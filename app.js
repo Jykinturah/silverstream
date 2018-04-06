@@ -26,6 +26,8 @@ var Silverstream = new function() {
 			console.log("Silverstream v" + this.version + " has started!");
 			console.log("Username: " + bot.client.user.tag + " (" + bot.client.user.id + ")");
 
+			bot.client.user.setActivity('you write!', { type: 'WATCHING' }).catch(err=>{throw err;});;
+
 			this.botUrl = "https://discordapp.com/oauth2/authorize?client_id=" + bot.client.user.id + "&scope=bot";
 
 			if (!bot.client.guilds) console.log("I'm not in any servers!"); 
@@ -49,6 +51,9 @@ var Silverstream = new function() {
 	  			}
 	  			if(command === 'register'){
 	  				return this.register(args,message);
+	    		}
+	    		if(command === 'getcount'){
+	    			return this.getcount(args,message);
 	    		}
 	  			if(command === 'botlink'){
 	  				console.log(`botlink: ${message.author.username} (${message.author.id}) ${message.channel.type}`);
@@ -81,11 +86,29 @@ var Silverstream = new function() {
 		});
 	}
 
+	this.getcount = function(args, msg){
+		if(this.db == null) { msg.channel.send("One sec, I'm still a bit disoriented!"); return; }
+		let snowflake = msg.author.id;
+		this.db.collection('users').find({"userid":snowflake}).toArray().then(result => {
+			if(result.length < 1) {
+				msg.channel.send(`I have no idea who you are <@${snowflake}>! Sorry!`);
+			}else{
+				this.db.collection('counts').find({"users_id":ObjectID(result[0]._id)}).toArray()
+					.then(results =>{
+						var totalCount = 0;
+						results.forEach(result =>{
+							totalCount += result.count;
+						});
+						msg.channel.send(`You have a total of ${totalCount} words so far, <@${snowflake}>! Nice!`);
+					}).catch(err => {throw err});
+			}
+		}).catch(err => {throw err;});
+	}
+
 	this.wordcount = function(args, msg){
 		if(this.db == null) { msg.channel.send("One sec, I'm still a bit disoriented!"); return; }
-		if(args.length < 1) { msg.channel.send("Hey! Don't try to break me, that's mean!!"); return; }
-		var count = parseInt(args[0], 10)
-		if (!args[0] === count) { msg.channel.send("Hey! Don't try to break me, that's mean!!"); return; }
+		var count = parseInt(args[0], 10);
+		if(args.length < 1 || isNaN(count) || count > 1000000 || count < 1) { msg.channel.send("Hey! Don't try to break me, that's mean!!"); return; }
 		let snowflake = msg.author.id;
 		this.db.collection('users').find({"userid":snowflake}).toArray().then(result => {
 			if(result.length < 1) {
@@ -94,14 +117,12 @@ var Silverstream = new function() {
 					this.db.collection('counts').insertOne({"users_id":ObjectID(r.ops[0]._id),"subdate":new Date(),"count":count})
 						.then(r => {
 							msg.channel.send(`Added ${count} words for you!`);
-							console.log(r);
 						}).catch(err => {throw err});
 				}).catch(err => {throw err;});
 			} else {
 				this.db.collection('counts').insertOne({"users_id":ObjectID(result[0]._id),"subdate":new Date(),"count":count})
 					.then(r => {
 						msg.channel.send(`Added ${count} words for you, <@${snowflake}>!`);
-						console.log(r);
 					}).catch(err => {throw err});
 			}
 		}).catch(err => {throw err;});
