@@ -1,15 +1,25 @@
-// users TABLE
+// WORD COUNTS
 {
 	"_id": 1,
-	"userid": "SNOWFLAKE",
-	"schedules": [
-		{ "month": 0, "day": 0, "hour": 23, "minute": 30, "second": 0 }
-	]
-}
-// counts TABLE
-{
-	"_id": 1,
-	"users_id": 1,
-	"subdate": "DATEOBJ",
-	"count": 200
+	"discord_id": "SNOWFLAKE",
+	"reminder_time": "HHMMSSSS",
+	"reminder_enable": "true/false",
+	"count_total": "Sum of all word counts",
+	"current_year": "Current Year as Number",
+	"count_day": {
+		"d_1": "Sum on Day 1",
+		"d_2": "Sum on Day 2",
+		"d_3": "Sum on Day 3"
+	},
+	"count_month": {
+		"y_2018_m_1": "Sum in Jan 2018",
+		"y_2018_m_2": "Sum in Feb 2018",
+		"y_2018_m_3": "Sum in Mar 2018",
+		"y_2019_m_1": "Sum in Jan 2019",
+		"y_2019_m_2": "Sum in Feb 2019"
+	},
+	"count_year":{
+		"y_2018": "Sum in 2018",
+		"y_2019": "Sum in 2019"
+	}
 }

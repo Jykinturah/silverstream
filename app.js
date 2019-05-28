@@ -1,11 +1,12 @@
 'use strict';
 
 const Discord = require('discord.js');
-const MongoClient = require('mongodb').MongoClient;
 const moment = require('moment-timezone');
+moment.tz.setDefault("America/Los_Angeles");
 const fs = require('fs');
-var ObjectID = require('mongodb').ObjectID
 global.Promise = require('bluebird');
+const mongoose = require('mongoose');
+const validator = require('validator');
 
 var Silverstream = new function() {
 	this.client = new Discord.Client();
@@ -13,7 +14,8 @@ var Silverstream = new function() {
 	this.config = require("./config.json");
 	this.replies = require("./replies.json");
 	this.botUrl = null;
-	this.db = null;
+	this.wordCountDB = null;
+	// this.db = null;
 	this.enable = false;
 
 	this.commands = {
@@ -31,52 +33,99 @@ var Silverstream = new function() {
 			"help":"This is how you tell me how may words you have written!",
 			"admin":false,
 			"exec": function(bot, args, msg){
-				if(bot.db == null) { msg.channel.send("One sec, I'm still a bit disoriented!"); return; }
-				var count = parseInt(args[0], 10);
-				if(args.length < 1 || isNaN(count) || count > 1000000 || count < 1) { msg.channel.send("Hey! Don't try to break me, that's mean!!"); return; }
+				if(bot.wordCountDB == null) { 
+					msg.channel.send("One sec, I'm still a bit disoriented!")
+						.catch(err => {console.log(err)}); 
+					return; }
 				let snowflake = msg.author.id;
-				bot.db.collection('users').find({"userid":snowflake}).toArray().then(result => {
-					if(result.length < 1) {
-						bot.db.collection('users').insertOne({"userid":snowflake}).then(r => {
-							msg.channel.send(`Hmm... I don't know you before, <@${snowflake}>, but I do now!!`);
-							bot.db.collection('counts').insertOne({"users_id":ObjectID(r.ops[0]._id),"subdate":new Date(),"count":count})
-								.then(r => {
-									msg.channel.send(`Added ${count} words for you!`);
-								}).catch(err => {throw err});
-						}).catch(err => {throw err;});
-					} else {
-						bot.db.collection('counts').insertOne({"users_id":ObjectID(result[0]._id),"subdate":new Date(),"count":count})
-							.then(r => {
-								msg.channel.send(`Added ${count} words for you, <@${snowflake}>!`);
-							}).catch(err => {throw err});
+				var count = parseInt(args[0], 10);
+				if(args.length < 1 || isNaN(count) || count > 1000000 || count < 1) { 
+					msg.channel.send("Hey! Don't try to break me, that's mean!!")
+						.catch(err => {console.log(err)}); 
+					return; 
+				}
+
+				bot.wordCountDB.findOne({"discord_id":snowflake}, (err, record) => {
+					if (!record) {
+						record = new bot.wordCountDB({
+							discord_id: snowflake,
+							reminder_time: "",
+							reminder_enable: false,
+							count_total: 0,
+							current_year: 0,
+							count_day: {},
+							count_month: {},
+							count_year: {}
+						});
 					}
-				}).catch(err => {throw err;});
+
+					let today = moment();
+					let day = today.dayOfYear();
+					let month = today.month() + 1;
+					let year =  today.year();
+					let dayKey = "d_" + day;
+					let monthKey = "y_" + year + "_m_" + month;
+					let yearKey = "y_" + year;
+
+					// If year is not the same, wipe out date and month counts to save space
+					if ( record.current_year != year ) {
+						// destroy all daily counts last year
+						record.count_day.clear();
+						
+						// delete all monthly counts before last year
+						record.count_month.forEach( (v,k,m) => {
+							if( !(k.includes(year) || k.includes(year-1)) ) m.delete(k);
+						});
+
+						// update year to current year
+						record.current_year = year;
+					}
+
+					record.count_total = ( record.count_total ? record.count_total : 0 ) + count;
+					record.count_day.set(dayKey, ( record.count_day.has(dayKey) ? record.count_day.get(dayKey) : 0 ) + count);
+					record.count_month.set(monthKey, ( record.count_month.has(monthKey) ? record.count_month.get(monthKey) : 0 ) + count);
+					record.count_year.set(yearKey, ( record.count_year.has(yearKey) ? record.count_year.get(yearKey) : 0 ) + count);
+
+					record.save();
+
+					msg.channel.send(`Added ${count} words for you, <@${snowflake}>!`)
+						.catch(err => {console.log(err)});
+				});			
 			}
 		},
 		"getcount":{
-			"synt":"[timeperiod](optional)",
-			"help":"This is how to ask me for your word count totals! Time period is optional but will tell you how many words you have written in that time. Examples: 1d = 1 day, 2w = 2 weeks, 4m = 4 months.",
+			"synt":"",
+			"help":"This is how to ask me for your word count totals!",
 			"admin":false,
 			"exec": function(bot, args, msg){
-				if(bot.db == null) { msg.channel.send("One sec, I'm still a bit disoriented!"); return; }
+				if(bot.wordCountDB == null) { 
+					msg.channel.send("One sec, I'm still a bit disoriented!")
+						.catch(err => {console.log(err)}); 
+					return; 
+				}
 				let snowflake = msg.author.id;
-				bot.db.collection('users').find({"userid":snowflake}).toArray().then(result => {
-					if(result.length < 1) {
-						msg.author.send(`I have no idea who you are <@${snowflake}>! Sorry!`);
-					}else{
-						if(args.length > 0){
-							msg.author.send("Sorry, the [timeperiod] option isn't quite finished yet!");
-						}
-						bot.db.collection('counts').find({"users_id":ObjectID(result[0]._id)}).toArray()
-							.then(results =>{
-								var totalCount = 0;
-								results.forEach(result =>{
-									totalCount += result.count;
-								});
-								msg.author.send(`You have a total of ${totalCount} words so far, <@${snowflake}>! Nice!`);
-							}).catch(err => {throw err});
+
+				bot.wordCountDB.findOne({"discord_id":snowflake}, (err, record) => {
+					if (!record) {
+						msg.author.send(`I have no idea who you are <@${snowflake}>! Sorry! Why don't you try adding some word counts first?`)
+							.catch(err => {console.log(err)});
 					}
-				}).catch(err => {throw err;});
+
+					/** TODO Time period function **/
+					let totalCount = record.count_total;
+					msg.author.send(`You have a total of ${totalCount} words so far, <@${snowflake}>! Nice!`)
+						.catch(err => {console.log(err)});
+
+				});
+			}
+		},
+		"remindnow":{
+			"synt":"[+/- hours]",
+			"help":`I will remind you to submit your word counts every day +/- the number of hours you say from now! (Ex. ${bot.config.prefix}remindnow +3)`,
+			"admin":false,
+			"exec": function(bot, args, msg){
+				// TODO
+				msg.channel.send("This isn't implemented yet, you can bother <@123148298784735232> about it! (remindnow)");
 			}
 		},
 		// "remindme":{
@@ -88,32 +137,6 @@ var Silverstream = new function() {
 		// 		msg.channel.send("This isn't implemented yet, you can bother <@123148298784735232> about it! (remindme)");
 		// 	}
 		// },
-		// "reminders":{
-		// 	"synt":"",
-		// 	"help":"A list of the reminders you wanted! You can remove them using this, too, by following the instructions!",
-		// 	"admin":false,
-		// 	"exec": function(bot, args, msg){
-		// 		// TODO
-		// 		msg.channel.send("This isn't implemented yet, you can bother <@123148298784735232> about it! (reminders)");
-		// 	}
-		// },
-		"register":{
-			"synt":"",
-			"help":"This is how you ask me to add you to my lists!",
-			"admin":false,
-			"exec": function(bot, args, msg){
-				if(bot.db == null) { msg.channel.send("One sec, I'm still a bit disoriented!"); return; }
-				let snowflake = msg.author.id;
-				bot.db.collection('users').find({"userid":snowflake}).toArray().then(result => {
-					if(result.length < 1) {
-						bot.db.collection('users').insertOne({"userid":snowflake}).catch(err => {throw err;return false});
-						msg.channel.send(`Okay! I'll remember you, <@${snowflake}>!`);
-					} else {
-						msg.channel.send(`I already know you, <@${snowflake}>!!`);
-					}
-				}).catch(err => {throw err;});
-			}
-		},
 		"ping":{
 			"synt":"",
 			"help":"!!!",
@@ -177,9 +200,7 @@ var Silverstream = new function() {
 			"exec": function(bot, args, msg){
 				msg.channel.send("Signing off!")
 					.then(m => {
-						bot.client.destroy().then(m => {
-							process.exit(0);
-						});
+						bot.client.destroy().then(m => { process.exit(0);});
 					});
 			}
 		}
@@ -262,30 +283,13 @@ var Silverstream = new function() {
 	}
 
 	this.mongoInit = function(bot){
-		var db = null;
 		let mcurl = "mongodb://" + bot.config.mongoUsr + ":" + bot.config.mongoPwd + "@" + bot.config.mongoUrl + "/" + bot.config.mongoDB;
-
-		MongoClient.connect(mcurl).then(client => {
-			db = client.db(bot.config.mongoDB);
-			console.log("User \'" + bot.config.mongoUsr + "\' opened database successfully!");
-			db.listCollections().toArray().then(arr => {
-				if(!arr.find(coll => {return coll.name == "users"}))
-					db.createCollection("users",  JSON.parse(fs.readFileSync("./validator/users.json")))
-						.then(res => {console.log("\t\'users\' collection created!");})
-						.catch(err => {throw err;});
-				else console.log("\t\'users\' collection found!");
-				if(!arr.find(coll => {return coll.name == "counts"}))
-					db.createCollection("counts",  JSON.parse(fs.readFileSync("./validator/counts.json")))
-						.then(res => {console.log("\t\'counts\' collection created!");})
-						.catch(err => {throw err;});
-				else console.log("\t\'counts\' collection found!");
-				if(db === null) {
-					console.error("Database not found! Exiting!");
-					process.exit(1);
-				}
-				this.db = db;
-			}).catch(err => {throw err;});
-		}).catch(err => {throw err;});	
+		mongoose.connect(mcurl,{useNewUrlParser: true})
+		  .then(() => {
+		    console.log('Database connection successful!');
+		  })
+		  .catch(err => {console.error('Database connection error!');console.error(err);});
+		this.wordCountDB = require('./schemas/wordCountSchema.js')(mongoose);
 	}
 }
 
